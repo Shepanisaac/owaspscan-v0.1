@@ -19,7 +19,8 @@ It is off by default, so a normal scan stays passive. `--max-probes N` caps the 
 requests (default 100). `owaspscan --list-checks` shows which checks are active.
 
 ## v0.1 checks
-security-headers, cookies, transport, disclosure, exposed-files (all passive, GET-only).
+Passive: security-headers, cookies, transport, disclosure, exposed-files, tls.
+Active (need `--active`): cors.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,

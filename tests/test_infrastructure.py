@@ -81,7 +81,7 @@ def test_active_check_skipped_by_default(fake_active):
 
 
 def test_active_check_runs_with_flag(fake_active):
-    result = scan(active=True)
+    result = scan(active=True, enabled_checks=["fake-active"])
     assert any(f.check_id == "fake-active" for f in result.findings)
     assert result.active and result.probes_sent == 1
 

@@ -8,6 +8,14 @@ from owaspscan.crawler import crawl
 HTML = {"content-type": "text/html"}
 
 
+@pytest.fixture(autouse=True)
+def no_real_tls(monkeypatch):
+    """Tests must never open real network connections; TLS tests patch these themselves."""
+    from owaspscan.checks import tls
+    monkeypatch.setattr(tls, "_cert_status", lambda host, port: ("ok", 365))
+    monkeypatch.setattr(tls, "_handshake_result", lambda host, port, version: tls.REJECTED)
+
+
 @pytest.fixture
 def make_ctx():
     def _make(handler, target="https://example.test/"):
