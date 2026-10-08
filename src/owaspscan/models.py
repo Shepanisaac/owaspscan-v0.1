@@ -42,3 +42,30 @@ class Finding:
         data["severity"] = self.severity.name
         data["category_name"] = CATEGORIES.get(self.category, "Unknown")
         return data
+
+
+@dataclass(frozen=True)
+class InjectionPoint:
+    """One place where input can be sent: a single parameter of a GET endpoint."""
+
+    url: str  # endpoint without a query string
+    param: str
+    method: str = "GET"
+    params: tuple[tuple[str, str], ...] = ()  # every parameter with its default value
+
+    def request_params(self, value: str) -> dict[str, str]:
+        """All parameters with this point's parameter set to `value`."""
+        return {k: (value if k == self.param else v) for k, v in self.params}
+
+
+@dataclass(frozen=True)
+class Form:
+    action: str  # absolute URL
+    method: str  # "GET" or "POST"
+    fields: tuple[tuple[str, str], ...] = ()  # (name, default value)
+
+    def injection_points(self) -> list[InjectionPoint]:
+        """GET forms only. POST forms are listed but never submitted."""
+        if self.method != "GET":
+            return []
+        return [InjectionPoint(self.action, name, "GET", self.fields) for name, _ in self.fields]

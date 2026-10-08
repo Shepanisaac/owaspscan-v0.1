@@ -27,6 +27,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cookie", action="append", default=[], metavar="NAME=VALUE",
                    help="Session cookie for authenticated scans (repeatable).")
     p.add_argument("--checks", help="Comma-separated check ids (default: all).")
+    p.add_argument("--active", action="store_true",
+                   help="Also run active checks that send harmless modified (probe) requests.")
+    p.add_argument("--max-probes", type=int, default=100,
+                   help="Cap on probe requests in active mode (default 100).")
     p.add_argument("--json", metavar="PATH", help="Also write a JSON report.")
     p.add_argument("--list-checks", action="store_true")
     p.add_argument("--version", action="version", version=f"owaspscan {__version__}")
@@ -43,7 +47,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list_checks:
         for check_id, cls in REGISTRY.items():
-            print(f"{check_id:16} {cls.category}  {cls.description}")
+            mode = "active " if cls.active else "passive"
+            print(f"{check_id:16} {cls.category}  {mode}  {cls.description}")
         return 0
 
     if not args.target:
@@ -68,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
         delay=args.delay,
         timeout=args.timeout,
         cookies=cookies,
+        active=args.active,
+        max_probes=args.max_probes,
         enabled_checks=[c.strip() for c in args.checks.split(",")] if args.checks else None,
     )
 

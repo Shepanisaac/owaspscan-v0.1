@@ -17,8 +17,9 @@ def summarize(result: ScanResult) -> dict[str, int]:
 
 
 def render_console(result: ScanResult) -> str:
+    mode = f"ACTIVE MODE ({result.probes_sent} probe requests sent)" if result.active else "passive mode"
     lines = [
-        f"owaspscan {__version__} | {result.target}",
+        f"owaspscan {__version__} | {result.target} | {mode}",
         f"Scanned {result.pages_scanned} page(s), {len(result.findings)} finding(s)",
         "  ".join(f"{name}: {n}" for name, n in summarize(result).items()),
         "",
@@ -41,6 +42,8 @@ def write_json(result: ScanResult, path: str) -> None:
         "target": result.target,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "pages_scanned": result.pages_scanned,
+        "active_mode": result.active,
+        "probes_sent": result.probes_sent,
         "summary": summarize(result),
         "findings": [f.to_dict() for f in result.findings],
     }

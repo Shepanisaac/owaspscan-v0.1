@@ -24,6 +24,8 @@ class ScanResult:
     target: str
     pages_scanned: int
     findings: list[Finding]
+    active: bool = False
+    probes_sent: int = 0
 
 
 def run_scan(config: ScanConfig, transport: httpx.BaseTransport | None = None) -> ScanResult:
@@ -31,6 +33,12 @@ def run_scan(config: ScanConfig, transport: httpx.BaseTransport | None = None) -
     unknown = [i for i in ids if i not in REGISTRY]
     if unknown:
         raise ValueError(f"Unknown check(s): {', '.join(unknown)}")
+
+    active_ids = [i for i in ids if REGISTRY[i].active]
+    if active_ids and not config.active:
+        if config.enabled_checks:  # explicitly requested but not allowed
+            raise ValueError(f"Check(s) {', '.join(active_ids)} send probe requests; add --active")
+        ids = [i for i in ids if i not in active_ids]  # default run: stay passive
 
     with httpx.Client(
         timeout=config.timeout,
@@ -53,4 +61,4 @@ def run_scan(config: ScanConfig, transport: httpx.BaseTransport | None = None) -
 
     unique = list(dict.fromkeys(findings))  # dedupe, keep order
     unique.sort(key=lambda f: (-f.severity, f.category, f.url, f.title))
-    return ScanResult(config.target, len(pages), unique)
+    return ScanResult(config.target, len(pages), unique, config.active, ctx.probes_used)

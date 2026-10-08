@@ -14,6 +14,10 @@ OWASP Top 10 weaknesses. **Only scan systems you own or have written permission 
 Options: `--max-pages`, `--delay`, `--timeout`, `--cookie NAME=VALUE` (repeatable),
 `--checks id1,id2`, `--json PATH`.
 
+**Active mode:** `--active` enables checks that send harmless test probes (GET only).
+It is off by default, so a normal scan stays passive. `--max-probes N` caps the extra
+requests (default 100). `owaspscan --list-checks` shows which checks are active.
+
 ## v0.1 checks
 security-headers, cookies, transport, disclosure, exposed-files (all passive, GET-only).
 

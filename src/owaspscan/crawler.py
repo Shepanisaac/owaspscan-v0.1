@@ -4,12 +4,16 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass
-from urllib.parse import urldefrag, urljoin, urlparse
+from functools import cached_property
+from urllib.parse import parse_qsl, urldefrag, urljoin, urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
 
 from .config import ScanConfig
+from .models import Form, InjectionPoint
+
+NON_INPUT_TYPES = {"submit", "button", "image", "reset", "file", "password"}
 
 
 @dataclass(frozen=True)
@@ -21,14 +25,43 @@ class Page:
     def is_html(self) -> bool:
         return "text/html" in self.response.headers.get("content-type", "")
 
+    @cached_property
+    def soup(self) -> BeautifulSoup | None:
+        return BeautifulSoup(self.response.text, "html.parser") if self.is_html else None
+
+    @cached_property
+    def forms(self) -> tuple[Form, ...]:
+        """Forms found on this page, with absolute action URLs."""
+        if self.soup is None:
+            return ()
+        forms = []
+        for tag in self.soup.find_all("form"):
+            action, _ = urldefrag(urljoin(self.url, tag.get("action") or self.url))
+            method = (tag.get("method") or "GET").upper()
+            fields = []
+            for field in tag.find_all(["input", "textarea", "select"]):
+                name = field.get("name")
+                if not name or (field.get("type") or "text").lower() in NON_INPUT_TYPES:
+                    continue
+                fields.append((name, field.get("value") or ""))
+            forms.append(Form(action, method, tuple(fields)))
+        return tuple(forms)
+
+    @cached_property
+    def query_points(self) -> tuple[InjectionPoint, ...]:
+        """One injection point per query-string parameter of this page's own URL."""
+        parts = urlparse(self.url)
+        pairs = tuple(parse_qsl(parts.query, keep_blank_values=True))
+        base = urlunparse(parts._replace(query="", fragment=""))
+        return tuple(InjectionPoint(base, name, "GET", pairs) for name, _ in pairs)
+
 
 def extract_links(page: Page) -> list[str]:
     """Return absolute http(s) links found in an HTML page."""
-    if not page.is_html:
+    if page.soup is None:
         return []
-    soup = BeautifulSoup(page.response.text, "html.parser")
     links = []
-    for anchor in soup.find_all("a", href=True):
+    for anchor in page.soup.find_all("a", href=True):
         url, _ = urldefrag(urljoin(page.url, anchor["href"]))
         if urlparse(url).scheme in ("http", "https"):
             links.append(url)
