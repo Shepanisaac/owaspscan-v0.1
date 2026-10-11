@@ -19,6 +19,10 @@ class ScanContext:
     client: httpx.Client
     pages: list[Page]
     probes_used: int = 0
+    transport: httpx.BaseTransport | None = None  # shared transport, so checks can build
+                                                    # a second client (e.g. an anonymous one)
+                                                    # that still goes through the same mock
+                                                    # transport in tests / real network otherwise.
 
     @property
     def landing(self) -> Page:

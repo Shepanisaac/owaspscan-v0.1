@@ -50,7 +50,7 @@ def run_scan(config: ScanConfig, transport: httpx.BaseTransport | None = None) -
         pages = crawl(client, config)
         if not pages:
             raise ScanError(f"Could not reach {config.target}")
-        ctx = ScanContext(config, client, pages)
+        ctx = ScanContext(config, client, pages, transport=transport)
 
         findings: list[Finding] = []
         for check_id in ids:

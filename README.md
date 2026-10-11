@@ -40,16 +40,26 @@ against a site you don't operate yourself.
 | reflection | A03 | active | Reflected input not escaped for its context (possible XSS) |
 | sqli-errors | A03 | active | Database error messages triggered by a quote |
 | open-redirect | A01 | active | Parameter-controlled redirect to an external site |
+| session | A07 | passive | Weak-looking session cookie (short, numeric, repeated runs) |
+| csrf | A01 | passive | State-changing forms with no CSRF token field and no SameSite cookie |
+| access-control | A01 | active | Pages reachable while logged in that need no auth at all |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
 --i-have-permission` always stays passive.
+
+**`access-control` needs `--cookie`** (your own session) to mean anything — it compares
+pages fetched with that cookie against the same URLs fetched with no cookie at all. It
+only proves a page needs *no* authentication; it cannot detect one user reaching another
+user's data (true IDOR), which needs a second account's cookie and is out of scope here.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
 and import it in `checks/__init__.py`. Add a test with a mocked transport.
 
 ## Limitations
+`access-control` is a single-identity check: it flags pages open to anyone, not pages one logged-in user can read that belong to another user (IDOR). That needs two accounts and is not implemented.
+
 This is a passive-leaning scanner. It detects common misconfigurations and error-based
 signals well, but it does **not** cover: business-logic flaws, broken access control
 between user accounts (IDOR), authentication/session weaknesses, blind or second-order
