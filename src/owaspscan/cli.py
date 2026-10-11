@@ -29,8 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--checks", help="Comma-separated check ids (default: all).")
     p.add_argument("--active", action="store_true",
                    help="Also run active checks that send harmless modified (probe) requests.")
-    p.add_argument("--max-probes", type=int, default=100,
-                   help="Cap on probe requests in active mode (default 100).")
+    p.add_argument("--max-probes", type=int, default=150,
+                   help="Cap on probe requests in active mode (default 150).")
     p.add_argument("--json", metavar="PATH", help="Also write a JSON report.")
     p.add_argument("--list-checks", action="store_true")
     p.add_argument("--version", action="version", version=f"owaspscan {__version__}")

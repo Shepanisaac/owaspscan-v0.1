@@ -16,11 +16,11 @@ Options: `--max-pages`, `--delay`, `--timeout`, `--cookie NAME=VALUE` (repeatabl
 
 **Active mode:** `--active` enables checks that send harmless test probes (GET only).
 It is off by default, so a normal scan stays passive. `--max-probes N` caps the extra
-requests (default 100). `owaspscan --list-checks` shows which checks are active.
+requests (default 150). `owaspscan --list-checks` shows which checks are active.
 
 ## v0.1 checks
 Passive: security-headers, cookies, transport, disclosure, exposed-files, tls.
-Active (need `--active`): cors.
+Active (need `--active`): cors, reflection, sqli-errors, open-redirect.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,

@@ -46,17 +46,20 @@ class ScanContext:
         return points
 
     def probe(self, url: str, params: dict[str, str] | None = None,
-              headers: dict[str, str] | None = None) -> httpx.Response | None:
+              headers: dict[str, str] | None = None,
+              follow_redirects: bool = True) -> httpx.Response | None:
         """Send one GET probe. Enforces the probe cap and delay; returns None on cap or error.
 
-        All active checks must send their requests through here.
+        All active checks must send their requests through here. follow_redirects=False
+        returns the redirect response itself (status + Location) instead of chasing it.
         """
         if self.probes_used >= self.config.max_probes:
             return None
         self.probes_used += 1
         time.sleep(self.config.delay)
         try:
-            return self.client.get(url, params=params, headers=headers)
+            return self.client.get(url, params=params, headers=headers,
+                                   follow_redirects=follow_redirects)
         except httpx.HTTPError:
             return None
 
