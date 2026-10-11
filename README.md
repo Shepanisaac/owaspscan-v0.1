@@ -6,25 +6,56 @@ OWASP Top 10 weaknesses. **Only scan systems you own or have written permission 
 ## Install
     pip install -e ".[dev]"
 
+Requires Python 3.10+.
+
 ## Usage
     owaspscan https://target.example --i-have-permission
     owaspscan http://localhost:3000 --i-have-permission --json report.json
+    owaspscan https://target.example --i-have-permission --active --max-probes 150
+    owaspscan --checks tls,security-headers https://target.example --i-have-permission
     owaspscan --list-checks
 
-Options: `--max-pages`, `--delay`, `--timeout`, `--cookie NAME=VALUE` (repeatable),
-`--checks id1,id2`, `--json PATH`.
+Options: `--max-pages` (default 25), `--delay` (default 0.2s), `--timeout` (default 10s),
+`--cookie NAME=VALUE` (repeatable, for authenticated scans), `--checks id1,id2`
+(default: all), `--json PATH`, `--active`, `--max-probes N` (default 150).
 
-**Active mode:** `--active` enables checks that send harmless test probes (GET only).
-It is off by default, so a normal scan stays passive. `--max-probes N` caps the extra
-requests (default 150). `owaspscan --list-checks` shows which checks are active.
+**Passive mode (default):** only normal GET page loads, plus a handful of fixed
+sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
-## v0.1 checks
-Passive: security-headers, cookies, transport, disclosure, exposed-files, tls.
-Active (need `--active`): cors, reflection, sqli-errors, open-redirect.
+**Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors` and
+`open-redirect`, which send GET requests with harmless test values into parameters and
+forms to look for misconfigurations. Get written authorization before using `--active`
+against a site you don't operate yourself.
+
+## v0.2 checks
+| Check | Category | Mode | Detects |
+|---|---|---|---|
+| security-headers | A05 | passive | Missing CSP, HSTS, clickjacking and nosniff protections |
+| cookies | A07 | passive | Cookies missing Secure, HttpOnly or SameSite |
+| transport | A02 | passive | Site served over plain HTTP |
+| disclosure | A05 | passive | Server/framework version leaks in headers |
+| exposed-files | A05 | passive | `.git`, `.env`, backups, debug pages left public |
+| tls | A02 | passive | Legacy TLS 1.0/1.1 support, certificate problems |
+| cors | A05 | active | CORS trusting arbitrary, null or look-alike origins |
+| reflection | A03 | active | Reflected input not escaped for its context (possible XSS) |
+| sqli-errors | A03 | active | Database error messages triggered by a quote |
+| open-redirect | A01 | active | Parameter-controlled redirect to an external site |
+
+Active checks only run with `--active` and only send GET requests, through a shared,
+delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
+--i-have-permission` always stays passive.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
 and import it in `checks/__init__.py`. Add a test with a mocked transport.
+
+## Limitations
+This is a passive-leaning scanner. It detects common misconfigurations and error-based
+signals well, but it does **not** cover: business-logic flaws, broken access control
+between user accounts (IDOR), authentication/session weaknesses, blind or second-order
+SQL injection, stored/DOM-based XSS, POST-only forms and JSON APIs, or anything requiring
+a logged-in multi-step workflow. A clean report is not proof the application is secure —
+treat it as a first pass, not a replacement for manual testing.
 
 ## Tests
     pytest
