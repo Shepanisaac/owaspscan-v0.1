@@ -27,7 +27,7 @@ sensitive-path requests (`exposed-files`). Safe against any site you're authoriz
 forms to look for misconfigurations. Get written authorization before using `--active`
 against a site you don't operate yourself.
 
-## v0.2 checks
+## Checks
 | Check | Category | Mode | Detects |
 |---|---|---|---|
 | security-headers | A05 | passive | Missing CSP, HSTS, clickjacking and nosniff protections |
@@ -43,6 +43,7 @@ against a site you don't operate yourself.
 | session | A07 | passive | Weak-looking session cookie (short, numeric, repeated runs) |
 | csrf | A01 | passive | State-changing forms with no CSRF token field and no SameSite cookie |
 | access-control | A01 | active | Pages reachable while logged in that need no auth at all |
+| components | A06 | passive | Known-vulnerable or end-of-life library/platform versions |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -66,6 +67,22 @@ between user accounts (IDOR), authentication/session weaknesses, blind or second
 SQL injection, stored/DOM-based XSS, POST-only forms and JSON APIs, or anything requiring
 a logged-in multi-step workflow. A clean report is not proof the application is secure —
 treat it as a first pass, not a replacement for manual testing.
+
+`components` only catches a library or platform when its version is visible somewhere
+(a script/stylesheet filename, a generator meta tag, a Server/X-Powered-By header). A
+modern bundled frontend (Webpack, Vite) that inlines its dependencies with no version
+string anywhere will show nothing — that is a detection gap, not a clean bill of health.
+The signature list is small and curated, not a live CVE feed; it will miss anything not
+in its table.
+
+## OWASP Top 10 (2021) coverage
+This tool has at least one check in 6 of the 10 categories: A01, A02, A03, A05, A06, A07.
+A04 (Insecure Design) and A09 (Logging/Monitoring) are not checked — they describe how a
+system is architected, not something visible from the outside in HTTP responses. A08
+(Software/Data Integrity) and full A10 (SSRF) coverage are not implemented either. Within
+the categories it does cover, coverage is partial: A03, for example, is reflected XSS and
+error-based SQL injection only — not stored/DOM-based XSS, blind SQLi, or other injection
+types (command, NoSQL, XXE, header injection).
 
 ## Tests
     pytest
