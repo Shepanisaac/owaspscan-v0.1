@@ -60,3 +60,27 @@ def test_cli_rejects_bad_url():
 def test_cli_list_checks(capsys):
     assert main(["--list-checks"]) == 0
     assert "security-headers" in capsys.readouterr().out
+
+
+def test_header_flag_parsed(capsys):
+    from owaspscan.cli import build_parser
+    args = build_parser().parse_args(
+        ["https://x.test", "--header", "Authorization: Bearer xyz", "--header", "X-Api-Key:123"])
+    assert args.header == ["Authorization: Bearer xyz", "X-Api-Key:123"]
+
+
+def test_cli_rejects_malformed_header():
+    assert main(["https://example.test", "--i-have-permission", "--header", "no-colon-here"]) == 2
+
+
+def test_cli_rejects_empty_header_name():
+    assert main(["https://example.test", "--i-have-permission", "--header", ":value"]) == 2
+
+
+def test_header_with_colon_in_value_is_split_on_first_colon():
+    # e.g. a header value that is itself a URL, "Referer: https://example.com"
+    from owaspscan.cli import build_parser
+    args = build_parser().parse_args(
+        ["https://x.test", "--header", "Referer: https://example.com"])
+    name, sep, value = args.header[0].partition(":")
+    assert name == "Referer" and value.lstrip() == "https://example.com"

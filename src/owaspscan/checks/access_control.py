@@ -1,7 +1,7 @@
 """A01: pages reachable while logged in that are equally reachable WITHOUT the session
-cookie (active, GET only). This is a single-identity check: it proves a page needs no
-authentication at all. It cannot prove IDOR between two different users' data — that
-needs a second account's cookie, which this check does not require or use.
+cookie or auth header (active, GET only). This is a single-identity check: it proves a
+page needs no authentication at all. It cannot prove IDOR between two different users'
+data — that needs a second account's credentials, which this check does not use.
 """
 from __future__ import annotations
 
@@ -18,6 +18,10 @@ ID_LIKE = re.compile(r"/\d{2,}(?:/|$)|[?&]\w*id\w*=\d{2,}|[0-9a-f]{8}-[0-9a-f]{4
                       re.IGNORECASE)
 LENGTH_RATIO_MIN = 0.85
 LENGTH_RATIO_MAX = 1.15
+AUTH_FAILURE_STATUSES = (401, 403)
+AUTH_FAILURE_RATIO = 0.5  # if at least half the authenticated crawl got 401/403, the
+                          # supplied cookie/token is probably invalid or expired — the
+                          # comparison below would just be noise, so skip it and say why
 
 
 def _path_and_query(url: str) -> str:
@@ -51,10 +55,21 @@ class AccessControlCheck(Check):
     active = True
 
     def run(self, ctx: ScanContext) -> list[Finding]:
-        if not ctx.config.cookies:
+        if not ctx.config.cookies and not ctx.config.headers:
             return []  # nothing to compare against: the crawl was already anonymous
 
+        failed = sum(1 for p in ctx.pages if p.response.status_code in AUTH_FAILURE_STATUSES)
+        if ctx.pages and failed / len(ctx.pages) >= AUTH_FAILURE_RATIO:
+            return [self.finding(
+                "Authenticated crawl mostly failed — cookie/token may be invalid or expired",
+                Severity.INFO, ctx.landing.url,
+                f"{failed} of {len(ctx.pages)} page(s) returned 401/403 even with the "
+                "supplied credentials, so access-control results would not be meaningful.",
+                "Log in again, get a fresh --cookie/--header value, and rerun.")]
+
         findings: list[Finding] = []
+        # Deliberately a fresh client with none of config.cookies/config.headers: this is
+        # the "logged out" identity the authenticated pages get compared against.
         with httpx.Client(timeout=ctx.config.timeout, follow_redirects=True,
                            headers={"User-Agent": ctx.config.user_agent},
                            transport=ctx.transport) as anon_client:
@@ -80,7 +95,7 @@ class AccessControlCheck(Check):
                         + (" (URL references a specific record)" if specific else ""),
                         Severity.HIGH if specific else Severity.LOW, page.url,
                         f"The same page (HTTP 200, similar content) was returned with and "
-                        f"without the configured session cookie.",
+                        f"without the configured session cookie/auth header.",
                         "Require authentication server-side for this page/endpoint; "
                         "don't rely on the client not knowing the URL."))
         return findings

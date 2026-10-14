@@ -16,8 +16,10 @@ Requires Python 3.10+.
     owaspscan --list-checks
 
 Options: `--max-pages` (default 25), `--delay` (default 0.2s), `--timeout` (default 10s),
-`--cookie NAME=VALUE` (repeatable, for authenticated scans), `--checks id1,id2`
-(default: all), `--json PATH`, `--active`, `--max-probes N` (default 150).
+`--cookie NAME=VALUE` (repeatable, for authenticated scans), `--header "NAME: VALUE"`
+(repeatable, e.g. `--header "Authorization: Bearer <token>"` for apps that use a bearer
+token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `--active`,
+`--max-probes N` (default 150).
 
 **Passive mode (default):** only normal GET page loads, plus a handful of fixed
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
@@ -49,10 +51,20 @@ Active checks only run with `--active` and only send GET requests, through a sha
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
 --i-have-permission` always stays passive.
 
-**`access-control` needs `--cookie`** (your own session) to mean anything — it compares
-pages fetched with that cookie against the same URLs fetched with no cookie at all. It
-only proves a page needs *no* authentication; it cannot detect one user reaching another
-user's data (true IDOR), which needs a second account's cookie and is out of scope here.
+**`access-control` needs `--cookie` and/or `--header`** (your own session) to mean
+anything — it compares pages fetched with those credentials against the same URLs
+fetched with neither. It only proves a page needs *no* authentication; it cannot detect
+one user reaching another user's data (true IDOR), which needs a second account's
+credentials and is out of scope here. If most of the authenticated crawl comes back
+401/403, it reports that your cookie/token is likely invalid or expired instead of
+running the (meaningless) comparison.
+
+**`session` also inspects an `Authorization: Bearer` token** supplied via `--header`. For
+a token that parses as a JWT (three base64url-encoded, dot-separated segments), it reads
+the header and payload — never the signature, no key is needed or implied to be checked —
+and flags `"alg": "none"` (some libraries will accept an unsigned token outright) and a
+missing `exp` claim (the token may never expire). A non-JWT bearer token instead gets the
+same short/numeric/repetitive heuristic as a cookie.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
@@ -74,6 +86,13 @@ modern bundled frontend (Webpack, Vite) that inlines its dependencies with no ve
 string anywhere will show nothing — that is a detection gap, not a clean bill of health.
 The signature list is small and curated, not a live CVE feed; it will miss anything not
 in its table.
+
+## `--header` support: a real gap to know about
+`--header`/bearer-token support is unit- and mock-tested, and I validated it end-to-end
+against a local mock server (including the stale-credential path), but **it has not yet
+been run against a real, live bearer-token-authenticated site** — both sites this tool has
+actually been tested against use PHP session cookies, not bearer tokens. Treat it as a new,
+less battle-tested feature until it's been proven on a real target.
 
 ## OWASP Top 10 (2021) coverage
 This tool has at least one check in 6 of the 10 categories: A01, A02, A03, A05, A06, A07.

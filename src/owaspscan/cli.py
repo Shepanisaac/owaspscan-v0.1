@@ -26,6 +26,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=10.0)
     p.add_argument("--cookie", action="append", default=[], metavar="NAME=VALUE",
                    help="Session cookie for authenticated scans (repeatable).")
+    p.add_argument("--header", action="append", default=[], metavar="NAME:VALUE",
+                   help="Extra request header for authenticated scans, e.g. "
+                        "'Authorization: Bearer <token>' for apps that use a bearer "
+                        "token instead of a cookie (repeatable).")
     p.add_argument("--checks", help="Comma-separated check ids (default: all).")
     p.add_argument("--active", action="store_true",
                    help="Also run active checks that send harmless modified (probe) requests.")
@@ -67,12 +71,20 @@ def main(argv: list[str] | None = None) -> int:
             return _fail(f"invalid --cookie '{item}', expected NAME=VALUE")
         cookies[name] = value
 
+    headers = {}
+    for item in args.header:
+        name, sep, value = item.partition(":")
+        if not sep or not name.strip():
+            return _fail(f"invalid --header '{item}', expected 'NAME:VALUE'")
+        headers[name.strip()] = value.lstrip()  # one leading space after ':' is conventional
+
     config = ScanConfig(
         target=args.target,
         max_pages=args.max_pages,
         delay=args.delay,
         timeout=args.timeout,
         cookies=cookies,
+        headers=headers,
         active=args.active,
         max_probes=args.max_probes,
         enabled_checks=[c.strip() for c in args.checks.split(",")] if args.checks else None,

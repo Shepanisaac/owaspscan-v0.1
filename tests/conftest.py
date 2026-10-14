@@ -18,9 +18,10 @@ def no_real_tls(monkeypatch):
 
 @pytest.fixture
 def make_ctx():
-    def _make(handler, target="https://example.test/", cookies=None):
+    def _make(handler, target="https://example.test/", cookies=None, headers=None):
         transport = httpx.MockTransport(handler)
-        config = ScanConfig(target=target, delay=0, cookies=cookies or {})
-        client = httpx.Client(transport=transport, follow_redirects=True, cookies=config.cookies)
+        config = ScanConfig(target=target, delay=0, cookies=cookies or {}, headers=headers or {})
+        client = httpx.Client(transport=transport, follow_redirects=True,
+                               cookies=config.cookies, headers=config.headers)
         return ScanContext(config, client, crawl(client, config), transport=transport)
     return _make

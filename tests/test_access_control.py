@@ -105,3 +105,57 @@ def test_landing_page_itself_is_never_flagged(make_ctx):
     ctx = make_ctx(lambda r: httpx.Response(200, headers=HTML, text=body),
                     cookies={"session": "abc123def456"})
     assert AccessControlCheck().run(ctx) == [] and ctx.probes_used == 0
+
+
+def test_header_alone_also_triggers_the_check(make_ctx):
+    # same scenario as test_page_open_without_cookie_is_flagged, but authenticated via
+    # a bearer header instead of a cookie
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(200, headers=HTML, text="<a href='/dashboard'>d</a>")
+        return httpx.Response(200, headers=HTML, text="<title>Dashboard</title>" + "x" * 200)
+    ctx = make_ctx(handler, headers={"Authorization": "Bearer sometoken"})
+    found = AccessControlCheck().run(ctx)
+    assert len(found) == 1 and found[0].severity == Severity.LOW
+
+
+def test_anonymous_request_sends_no_auth_header(make_ctx):
+    seen_auth_headers = []
+    def handler(request):
+        seen_auth_headers.append(request.headers.get("authorization"))
+        if request.url.path == "/":
+            return httpx.Response(200, headers=HTML, text="<a href='/dashboard'>d</a>")
+        return httpx.Response(200, headers=HTML, text="<title>x</title>" + "x" * 200)
+    ctx = make_ctx(handler, headers={"Authorization": "Bearer sometoken"})
+    AccessControlCheck().run(ctx)
+    assert seen_auth_headers[0] is not None
+    assert seen_auth_headers[-1] is None
+
+
+def test_mostly_401_crawl_reports_stale_credentials_and_stops(make_ctx):
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(200, headers=HTML, text="<a href='/a'>a</a><a href='/b'>b</a>")
+        return httpx.Response(401, headers=HTML, text="unauthorized")
+    ctx = make_ctx(handler, cookies={"session": "abc123def456"})
+    found = AccessControlCheck().run(ctx)
+    assert len(found) == 1 and found[0].severity == Severity.INFO
+    assert "invalid or expired" in found[0].title
+    assert ctx.probes_used == 0  # the comparison loop never ran
+
+
+def test_mostly_ok_crawl_with_one_401_still_runs_normally(make_ctx):
+    # under the 50% threshold: a single stale link shouldn't suppress real findings
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(200, headers=HTML,
+                                  text="<a href='/a'>a</a><a href='/b'>b</a><a href='/c'>c</a>")
+        if request.url.path == "/a":
+            return httpx.Response(401, headers=HTML, text="unauthorized")
+        return httpx.Response(200, headers=HTML, text="<title>x</title>" + "x" * 200)
+    ctx = make_ctx(handler, cookies={"session": "abc123def456"})
+    found = AccessControlCheck().run(ctx)
+    # the real access-control findings on /b and /c must still appear — no stale-credential
+    # finding should have suppressed them
+    assert not any("invalid or expired" in f.title for f in found)
+    assert len(found) == 2

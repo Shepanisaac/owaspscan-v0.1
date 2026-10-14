@@ -11,6 +11,10 @@ class ScanConfig:
     delay: float = 0.2
     timeout: float = 10.0
     cookies: dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)  # extra request headers, e.g.
+                                                              # Authorization: Bearer <token>
+                                                              # for apps that use a bearer
+                                                              # token instead of a cookie
     enabled_checks: list[str] | None = None  # None = all registered checks
     active: bool = False  # allow checks that send modified (probe) requests
     max_probes: int = 150  # hard cap on probe requests per scan

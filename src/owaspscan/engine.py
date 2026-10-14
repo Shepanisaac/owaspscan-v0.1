@@ -44,7 +44,7 @@ def run_scan(config: ScanConfig, transport: httpx.BaseTransport | None = None) -
         timeout=config.timeout,
         follow_redirects=True,
         cookies=config.cookies,
-        headers={"User-Agent": config.user_agent},
+        headers={"User-Agent": config.user_agent, **config.headers},
         transport=transport,
     ) as client:
         pages = crawl(client, config)
