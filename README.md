@@ -24,10 +24,10 @@ token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `-
 **Passive mode (default):** only normal GET page loads, plus a handful of fixed
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
-**Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors` and
-`open-redirect`, which send GET requests with harmless test values into parameters and
-forms to look for misconfigurations. Get written authorization before using `--active`
-against a site you don't operate yourself.
+**Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
+`open-redirect`, `access-control` and `ssrf`, which send GET requests with harmless test
+values into parameters and forms to look for misconfigurations. Get written authorization
+before using `--active` against a site you don't operate yourself.
 
 ## Checks
 | Check | Category | Mode | Detects |
@@ -46,6 +46,8 @@ against a site you don't operate yourself.
 | csrf | A01 | passive | State-changing forms with no CSRF token field and no SameSite cookie |
 | access-control | A01 | active | Pages reachable while logged in that need no auth at all |
 | components | A06 | passive | Known-vulnerable or end-of-life library/platform versions |
+| sri | A08 | passive | Cross-origin script/stylesheet tags with no Subresource Integrity check |
+| ssrf | A10 | active | Parameters that may make the server itself fetch an attacker-chosen URL |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -65,6 +67,15 @@ the header and payload — never the signature, no key is needed or implied to b
 and flags `"alg": "none"` (some libraries will accept an unsigned token outright) and a
 missing `exp` claim (the token may never expire). A non-JWT bearer token instead gets the
 same short/numeric/repetitive heuristic as a cookie.
+
+**`ssrf` is a heuristic, not a confirmed exploit.** Without a public callback server to
+receive an out-of-band request, there's no way to be fully certain a target application
+actually reached out anywhere — it only has two signals to go on: cloud-metadata-shaped
+content appearing in the response body (reported as HIGH, strong evidence), or the
+response taking noticeably longer than a control request to an ordinary URL (reported as
+INFO, explicitly labeled "unconfirmed" in the finding — worth checking by hand, not proof).
+Redirect responses are skipped entirely, since a 3xx bounce is the browser following a
+link, not the server fetching anything — that's `open-redirect`'s job, not `ssrf`'s.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
@@ -95,13 +106,16 @@ actually been tested against use PHP session cookies, not bearer tokens. Treat i
 less battle-tested feature until it's been proven on a real target.
 
 ## OWASP Top 10 (2021) coverage
-This tool has at least one check in 6 of the 10 categories: A01, A02, A03, A05, A06, A07.
-A04 (Insecure Design) and A09 (Logging/Monitoring) are not checked — they describe how a
-system is architected, not something visible from the outside in HTTP responses. A08
-(Software/Data Integrity) and full A10 (SSRF) coverage are not implemented either. Within
-the categories it does cover, coverage is partial: A03, for example, is reflected XSS and
-error-based SQL injection only — not stored/DOM-based XSS, blind SQLi, or other injection
-types (command, NoSQL, XXE, header injection).
+This tool has at least one check in 8 of the 10 categories: A01, A02, A03, A05, A06, A07,
+A08, A10. A04 (Insecure Design) and A09 (Logging/Monitoring) are not checked — they
+describe how a system is architected and operated, not something visible from the outside
+in HTTP responses. Within the categories it does cover, coverage is partial and in some
+cases thin: A03, for example, is reflected XSS and error-based SQL injection only — not
+stored/DOM-based XSS, blind SQLi, or other injection types (command, NoSQL, XXE, header
+injection). A08 is SRI only — it says nothing about CI/CD pipeline integrity, unsigned
+software updates, or insecure deserialization. A10 (`ssrf`) is a response-based heuristic
+with no out-of-band canary, so it will miss any SSRF that doesn't leak metadata content or
+cause a measurable timing difference — see the `ssrf` note above.
 
 ## Tests
     pytest
