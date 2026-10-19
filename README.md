@@ -25,9 +25,10 @@ token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `-
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
 **Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
-`open-redirect`, `access-control` and `ssrf`, which send GET requests with harmless test
-values into parameters and forms to look for misconfigurations. Get written authorization
-before using `--active` against a site you don't operate yourself.
+`open-redirect`, `access-control`, `ssrf` and `http-methods`, which send GET (or, for
+`http-methods` only, `OPTIONS`/`TRACE`) requests with harmless test values into parameters,
+forms and the landing page to look for misconfigurations. Get written authorization before
+using `--active` against a site you don't operate yourself.
 
 ## Checks
 | Check | Category | Mode | Detects |
@@ -48,6 +49,7 @@ before using `--active` against a site you don't operate yourself.
 | components | A06 | passive | Known-vulnerable or end-of-life library/platform versions |
 | sri | A08 | passive | Cross-origin script/stylesheet tags with no Subresource Integrity check |
 | ssrf | A10 | active | Parameters that may make the server itself fetch an attacker-chosen URL |
+| http-methods | A05 | active | TRACE enabled (XST risk); dangerous methods advertised via OPTIONS |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -76,6 +78,14 @@ response taking noticeably longer than a control request to an ordinary URL (rep
 INFO, explicitly labeled "unconfirmed" in the finding — worth checking by hand, not proof).
 Redirect responses are skipped entirely, since a 3xx bounce is the browser following a
 link, not the server fetching anything — that's `open-redirect`'s job, not `ssrf`'s.
+
+**`http-methods` only tests the landing page**, not every crawled page — method support is
+a server/vhost configuration question, not a per-page one, so testing further pages would
+just spend probe budget for no extra signal. Its `OPTIONS` finding is advisory only: the
+`Allow`/`Access-Control-Allow-Methods` header says what the server is configured to route
+to, not that `PUT`/`DELETE`/`CONNECT` actually succeed without authentication — verify
+manually. Its `TRACE` finding is a direct observation (the server answered a live `TRACE`
+request with HTTP 200), so it's reported at MEDIUM rather than advisory.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
