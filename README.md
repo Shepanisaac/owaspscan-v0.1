@@ -25,10 +25,10 @@ token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `-
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
 **Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
-`open-redirect`, `access-control`, `ssrf` and `http-methods`, which send GET (or, for
-`http-methods` only, `OPTIONS`/`TRACE`) requests with harmless test values into parameters,
-forms and the landing page to look for misconfigurations. Get written authorization before
-using `--active` against a site you don't operate yourself.
+`open-redirect`, `access-control`, `ssrf`, `http-methods` and `crlf-injection`, which send
+GET (or, for `http-methods` only, `OPTIONS`/`TRACE`) requests with harmless test values
+into parameters, forms and the landing page to look for misconfigurations. Get written
+authorization before using `--active` against a site you don't operate yourself.
 
 ## Checks
 | Check | Category | Mode | Detects |
@@ -50,6 +50,9 @@ using `--active` against a site you don't operate yourself.
 | sri | A08 | passive | Cross-origin script/stylesheet tags with no Subresource Integrity check |
 | ssrf | A10 | active | Parameters that may make the server itself fetch an attacker-chosen URL |
 | http-methods | A05 | active | TRACE enabled (XST risk); dangerous methods advertised via OPTIONS |
+| cache-control | A05 | passive | Login/password page served without Cache-Control: no-store |
+| directory-listing | A05 | passive | Apache/nginx autoindex directory listing exposed |
+| crlf-injection | A03 | active | Parameter value whose CR/LF characters survive into a response header |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -86,6 +89,20 @@ just spend probe budget for no extra signal. Its `OPTIONS` finding is advisory o
 to, not that `PUT`/`DELETE`/`CONNECT` actually succeed without authentication — verify
 manually. Its `TRACE` finding is a direct observation (the server answered a live `TRACE`
 request with HTTP 200), so it's reported at MEDIUM rather than advisory.
+
+**`cache-control` only recognizes a password field as "sensitive.**" It cannot know that
+an account dashboard or order-history page is sensitive without a cookie/header to compare
+against — that's a real detection gap, not a clean bill of health, for any authenticated
+page that isn't the login form itself.
+
+**`directory-listing` only recognizes the standard Apache/nginx autoindex markup** (an
+"Index of ..." title/heading). A themed or custom directory-listing page will not be
+recognized.
+
+**`crlf-injection` is a confirmed finding, not a heuristic** — the marker header can only
+appear in the response if raw CR/LF characters from the parameter actually reached code
+building a response header, so there's no ambiguity the way there is with `ssrf`'s timing
+signal.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
