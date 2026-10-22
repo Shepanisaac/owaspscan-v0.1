@@ -25,10 +25,12 @@ token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `-
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
 **Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
-`open-redirect`, `access-control`, `ssrf`, `http-methods` and `crlf-injection`, which send
-GET (or, for `http-methods` only, `OPTIONS`/`TRACE`) requests with harmless test values
-into parameters, forms and the landing page to look for misconfigurations. Get written
-authorization before using `--active` against a site you don't operate yourself.
+`open-redirect`, `access-control`, `ssrf`, `http-methods`, `crlf-injection` and
+`sqli-blind`, which send GET (or, for `http-methods` only, `OPTIONS`/`TRACE`) requests with
+harmless test values into parameters, forms and the landing page to look for
+misconfigurations. Get written authorization before using `--active` against a site you
+don't operate yourself. **`sqli-blind` is more invasive than the rest** — see its own note
+below before relying on it against anything you don't operate yourself.
 
 ## Checks
 | Check | Category | Mode | Detects |
@@ -53,6 +55,7 @@ authorization before using `--active` against a site you don't operate yourself.
 | cache-control | A05 | passive | Login/password page served without Cache-Control: no-store |
 | directory-listing | A05 | passive | Apache/nginx autoindex directory listing exposed |
 | crlf-injection | A03 | active | Parameter value whose CR/LF characters survive into a response header |
+| sqli-blind | A03 | active | Time-based blind SQL injection via sleep payloads (two-stage confirmed) |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -104,6 +107,17 @@ appear in the response if raw CR/LF characters from the parameter actually reach
 building a response header, so there's no ambiguity the way there is with `ssrf`'s timing
 signal.
 
+**`sqli-blind` actually makes the target database pause**, unlike every other check here,
+so it carries extra safety limits beyond the normal `--max-probes` cap: only the first 5
+parameters found are tested at all; each one gets a short (1s) exploratory sleep payload,
+and only a timing gap there triggers a second, longer (3s) confirmation payload to rule out
+ordinary jitter, rather than firing a long sleep at every parameter blind; and there's an
+extra pause before every sleep-payload probe on top of the normal `--delay`, specifically
+to avoid stacking load on a database that just paused. It stops at the first of
+MySQL/PostgreSQL/SQL Server whose payload shows a signal for a given parameter rather than
+trying all three. Expect a scan with `sqli-blind` enabled to take noticeably longer than
+one without it, and consider `--checks` to exclude it if you want a faster pass.
+
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
 and import it in `checks/__init__.py`. Add a test with a mocked transport.
@@ -137,9 +151,9 @@ This tool has at least one check in 8 of the 10 categories: A01, A02, A03, A05, 
 A08, A10. A04 (Insecure Design) and A09 (Logging/Monitoring) are not checked — they
 describe how a system is architected and operated, not something visible from the outside
 in HTTP responses. Within the categories it does cover, coverage is partial and in some
-cases thin: A03, for example, is reflected XSS and error-based SQL injection only — not
-stored/DOM-based XSS, blind SQLi, or other injection types (command, NoSQL, XXE, header
-injection). A08 is SRI only — it says nothing about CI/CD pipeline integrity, unsigned
+cases thin: A03, for example, covers reflected XSS, error-based SQL injection, time-based
+blind SQL injection, and CR/LF header injection — but not stored/DOM-based XSS, or other
+injection types (command, NoSQL, XXE). A08 is SRI only — it says nothing about CI/CD pipeline integrity, unsigned
 software updates, or insecure deserialization. A10 (`ssrf`) is a response-based heuristic
 with no out-of-band canary, so it will miss any SSRF that doesn't leak metadata content or
 cause a measurable timing difference — see the `ssrf` note above.
