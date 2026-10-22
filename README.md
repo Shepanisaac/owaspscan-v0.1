@@ -25,9 +25,9 @@ token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `-
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
 **Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
-`open-redirect`, `access-control`, `ssrf`, `http-methods`, `crlf-injection` and
-`sqli-blind`, which send GET (or, for `http-methods` only, `OPTIONS`/`TRACE`) requests with
-harmless test values into parameters, forms and the landing page to look for
+`open-redirect`, `access-control`, `ssrf`, `http-methods`, `crlf-injection`, `sqli-blind`
+and `path-traversal`, which send GET (or, for `http-methods` only, `OPTIONS`/`TRACE`)
+requests with harmless test values into parameters, forms and the landing page to look for
 misconfigurations. Get written authorization before using `--active` against a site you
 don't operate yourself. **`sqli-blind` is more invasive than the rest** — see its own note
 below before relying on it against anything you don't operate yourself.
@@ -56,6 +56,7 @@ below before relying on it against anything you don't operate yourself.
 | directory-listing | A05 | passive | Apache/nginx autoindex directory listing exposed |
 | crlf-injection | A03 | active | Parameter value whose CR/LF characters survive into a response header |
 | sqli-blind | A03 | active | Time-based blind SQL injection via sleep payloads (two-stage confirmed) |
+| path-traversal | A01 | active | Path traversal / LFI via a file- or path-shaped parameter |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -117,6 +118,13 @@ to avoid stacking load on a database that just paused. It stops at the first of
 MySQL/PostgreSQL/SQL Server whose payload shows a signal for a given parameter rather than
 trying all three. Expect a scan with `sqli-blind` enabled to take noticeably longer than
 one without it, and consider `--checks` to exclude it if you want a faster pass.
+
+**`path-traversal` only tries two fixed payloads per candidate parameter** (an 8-level-deep
+Unix path targeting `/etc/passwd`, and a Windows path targeting `win.ini`), and only against
+parameters whose *name* looks file/path-shaped. A traversal bug behind a parameter named
+something unrelated, or one that needs a different depth or encoding to clear the app's own
+path handling, won't be found. Like `crlf-injection`, a finding here is confirmed, not a
+heuristic — the marker content checked for can only appear if the file was actually read.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
