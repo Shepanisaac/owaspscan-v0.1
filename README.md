@@ -26,7 +26,7 @@ sensitive-path requests (`exposed-files`). Safe against any site you're authoriz
 
 **Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
 `open-redirect`, `access-control`, `ssrf`, `http-methods`, `crlf-injection`, `sqli-blind`,
-`path-traversal` and `host-header`, which send GET (or, for `http-methods` only,
+`path-traversal`, `host-header` and `ssti`, which send GET (or, for `http-methods` only,
 `OPTIONS`/`TRACE`) requests with harmless test values into parameters, headers, forms and
 the landing page to look for misconfigurations. Get written authorization before using
 `--active` against a site you don't operate yourself. **`sqli-blind` is more invasive than
@@ -59,6 +59,7 @@ operate yourself.
 | sqli-blind | A03 | active | Time-based blind SQL injection via sleep payloads (two-stage confirmed) |
 | path-traversal | A01 | active | Path traversal / LFI via a file- or path-shaped parameter |
 | host-header | A05 | active | Host/X-Forwarded-Host header trusted and echoed into redirects or pages |
+| ssti | A03 | active | Server-side template injection (payload arithmetic evaluated by the server) |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -133,6 +134,13 @@ config question, not a per-page one) and only recognizes reflection it can see i
 response or redirect. The real-world impact of this bug is usually in a flow this tool
 can't observe at all — a password-reset email built with the attacker's hostname — so a
 finding here means the ingredients for that attack exist, not that it's been demonstrated.
+
+**`ssti` only tries three template syntaxes** (Jinja2/Twig/Nunjucks-style `{{ }}`,
+Freemarker/JSP-EL-style `${ }`, ERB-style `<%= %>`), covering the most common engines
+without trying every one that exists — a less common engine's own syntax (Smarty, Velocity,
+Pug/Jade) won't be tried. Like `crlf-injection` and `path-traversal`, a finding here is
+confirmed, not a heuristic: the random two-prime product checked for can only appear
+without the template syntax around it if the server actually evaluated the expression.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
