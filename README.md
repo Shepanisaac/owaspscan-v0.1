@@ -25,12 +25,13 @@ token instead of a cookie), `--checks id1,id2` (default: all), `--json PATH`, `-
 sensitive-path requests (`exposed-files`). Safe against any site you're authorized to scan.
 
 **Active mode (`--active`):** also runs `cors`, `reflection`, `sqli-errors`,
-`open-redirect`, `access-control`, `ssrf`, `http-methods`, `crlf-injection`, `sqli-blind`
-and `path-traversal`, which send GET (or, for `http-methods` only, `OPTIONS`/`TRACE`)
-requests with harmless test values into parameters, forms and the landing page to look for
-misconfigurations. Get written authorization before using `--active` against a site you
-don't operate yourself. **`sqli-blind` is more invasive than the rest** — see its own note
-below before relying on it against anything you don't operate yourself.
+`open-redirect`, `access-control`, `ssrf`, `http-methods`, `crlf-injection`, `sqli-blind`,
+`path-traversal` and `host-header`, which send GET (or, for `http-methods` only,
+`OPTIONS`/`TRACE`) requests with harmless test values into parameters, headers, forms and
+the landing page to look for misconfigurations. Get written authorization before using
+`--active` against a site you don't operate yourself. **`sqli-blind` is more invasive than
+the rest** — see its own note below before relying on it against anything you don't
+operate yourself.
 
 ## Checks
 | Check | Category | Mode | Detects |
@@ -57,6 +58,7 @@ below before relying on it against anything you don't operate yourself.
 | crlf-injection | A03 | active | Parameter value whose CR/LF characters survive into a response header |
 | sqli-blind | A03 | active | Time-based blind SQL injection via sleep payloads (two-stage confirmed) |
 | path-traversal | A01 | active | Path traversal / LFI via a file- or path-shaped parameter |
+| host-header | A05 | active | Host/X-Forwarded-Host header trusted and echoed into redirects or pages |
 
 Active checks only run with `--active` and only send GET requests, through a shared,
 delayed, capped probe budget (`--max-probes`, default 150). A plain `owaspscan <url>
@@ -125,6 +127,12 @@ parameters whose *name* looks file/path-shaped. A traversal bug behind a paramet
 something unrelated, or one that needs a different depth or encoding to clear the app's own
 path handling, won't be found. Like `crlf-injection`, a finding here is confirmed, not a
 heuristic — the marker content checked for can only appear if the file was actually read.
+
+**`host-header` only tests the landing page** (like `http-methods`, this is a server/app
+config question, not a per-page one) and only recognizes reflection it can see in a GET
+response or redirect. The real-world impact of this bug is usually in a flow this tool
+can't observe at all — a password-reset email built with the attacker's hostname — so a
+finding here means the ingredients for that attack exist, not that it's been demonstrated.
 
 ## Adding a check
 Create `src/owaspscan/checks/yourcheck.py`, subclass `Check`, decorate with `@register`,
